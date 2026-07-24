@@ -28,11 +28,13 @@ export async function generateMetadata({
       description: post.description,
       type: "article",
       publishedTime: post.date,
+      ...(post.featuredImage && { images: [post.featuredImage] }),
     },
     twitter: {
       card: "summary_large_image",
       title: post.title,
       description: post.description,
+      ...(post.featuredImage && { images: [post.featuredImage] }),
     },
   };
 }
@@ -56,6 +58,7 @@ export default async function PostPage({
     headline: post.title,
     description: post.description,
     datePublished: post.date,
+    ...(post.featuredImage && { image: post.featuredImage }),
     author: { "@type": "Person", name: "The Steady Wallet" },
   };
 
@@ -82,6 +85,16 @@ export default async function PostPage({
           {post.readingTime}
         </p>
       </header>
+
+      {post.featuredImage && (
+        <div className="mx-auto max-w-3xl px-5 mt-10">
+          <img
+            src={post.featuredImage}
+            alt={post.title}
+            className="w-full rounded-3xl object-cover max-h-[480px]"
+          />
+        </div>
+      )}
 
       <div className="mx-auto max-w-2xl px-5 mt-12 prose-tsw">
         <div dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
