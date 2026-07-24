@@ -3,6 +3,7 @@ import path from "path";
 import matter from "gray-matter";
 import { remark } from "remark";
 import html from "remark-html";
+import { supabase, DbPost } from "./supabase";
 
 const postsDir = path.join(process.cwd(), "content", "posts");
 
@@ -13,6 +14,7 @@ export type PostMeta = {
   category: string;
   date: string;
   readingTime: string;
+  source: "file" | "db";
 };
 
 export type Post = PostMeta & { contentHtml: string };
@@ -30,9 +32,10 @@ function readingTime(text: string): string {
   return `${Math.max(1, Math.round(words / 220))} min read`;
 }
 
-export function getAllPosts(): PostMeta[] {
+function getFilePosts(): PostMeta[] {
+  if (!fs.existsSync(postsDir)) return [];
   const files = fs.readdirSync(postsDir).filter((f) => f.endsWith(".md"));
-  const posts = files.map((file) => {
+  return files.map((file) => {
     const slug = file.replace(/\.md$/, "");
     const raw = fs.readFileSync(path.join(postsDir, file), "utf8");
     const { data, content } = matter(raw);
@@ -43,12 +46,51 @@ export function getAllPosts(): PostMeta[] {
       category: data.category as string,
       date: data.date as string,
       readingTime: readingTime(content),
+      source: "file" as const,
     };
   });
-  return posts.sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
-export async function getPost(slug: string): Promise<Post | null> {
+async function getDbPosts(): Promise<PostMeta[]> {
+  try {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*")
+      .eq("published", true)
+      .order("created_at", { ascending: false });
+
+    if (error || !data) return [];
+
+    return data.map((p: DbPost) => ({
+      slug: p.slug,
+      title: p.title,
+      description: p.description,
+      category: p.category,
+      date: p.created_at.split("T")[0],
+      readingTime: readingTime(p.content),
+      source: "db" as const,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function getAllPostsAsync(): Promise<PostMeta[]> {
+  const [filePosts, dbPosts] = await Promise.all([
+    Promise.resolve(getFilePosts()),
+    getDbPosts(),
+  ]);
+
+  const all = [...filePosts, ...dbPosts];
+  return all.sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
+// Sync version for static generation (file posts only)
+export function getAllPosts(): PostMeta[] {
+  return getFilePosts().sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
+async function getFilePost(slug: string): Promise<Post | null> {
   const file = path.join(postsDir, `${slug}.md`);
   if (!fs.existsSync(file)) return null;
   const raw = fs.readFileSync(file, "utf8");
@@ -62,7 +104,41 @@ export async function getPost(slug: string): Promise<Post | null> {
     date: data.date as string,
     readingTime: readingTime(content),
     contentHtml: processed.toString(),
+    source: "file",
   };
+}
+
+async function getDbPost(slug: string): Promise<Post | null> {
+  try {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*")
+      .eq("slug", slug)
+      .eq("published", true)
+      .single();
+
+    if (error || !data) return null;
+
+    const processed = await remark().use(html).process(data.content);
+    return {
+      slug: data.slug,
+      title: data.title,
+      description: data.description,
+      category: data.category,
+      date: data.created_at.split("T")[0],
+      readingTime: readingTime(data.content),
+      contentHtml: processed.toString(),
+      source: "db",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function getPost(slug: string): Promise<Post | null> {
+  const filePost = await getFilePost(slug);
+  if (filePost) return filePost;
+  return getDbPost(slug);
 }
 
 export function formatDate(date: string): string {
