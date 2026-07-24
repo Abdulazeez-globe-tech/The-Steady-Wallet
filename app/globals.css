@@ -109,6 +109,13 @@ body {
   padding-left: 0.3rem;
 }
 
+.prose-tsw img {
+  width: 100%;
+  border-radius: 1.25rem;
+  margin-top: 1.5em;
+  margin-bottom: 1.5em;
+}
+
 .prose-tsw blockquote {
   border-left: 3px solid var(--color-sage);
   padding: 0.4rem 0 0.4rem 1.3rem;
