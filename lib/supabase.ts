@@ -21,6 +21,7 @@ export type DbPost = {
   category: string;
   content: string;
   published: boolean;
+  featured_image: string;
   created_at: string;
   updated_at: string;
 };
