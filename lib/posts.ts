@@ -15,6 +15,7 @@ export type PostMeta = {
   date: string;
   readingTime: string;
   source: "file" | "db";
+  featuredImage?: string;
 };
 
 export type Post = PostMeta & { contentHtml: string };
@@ -47,6 +48,7 @@ function getFilePosts(): PostMeta[] {
       date: data.date as string,
       readingTime: readingTime(content),
       source: "file" as const,
+      featuredImage: (data.featured_image as string) || undefined,
     };
   });
 }
@@ -69,6 +71,7 @@ async function getDbPosts(): Promise<PostMeta[]> {
       date: p.created_at.split("T")[0],
       readingTime: readingTime(p.content),
       source: "db" as const,
+      featuredImage: p.featured_image || undefined,
     }));
   } catch {
     return [];
@@ -85,7 +88,6 @@ export async function getAllPostsAsync(): Promise<PostMeta[]> {
   return all.sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
-// Sync version for static generation (file posts only)
 export function getAllPosts(): PostMeta[] {
   return getFilePosts().sort((a, b) => (a.date < b.date ? 1 : -1));
 }
@@ -105,6 +107,7 @@ async function getFilePost(slug: string): Promise<Post | null> {
     readingTime: readingTime(content),
     contentHtml: processed.toString(),
     source: "file",
+    featuredImage: (data.featured_image as string) || undefined,
   };
 }
 
@@ -129,6 +132,7 @@ async function getDbPost(slug: string): Promise<Post | null> {
       readingTime: readingTime(data.content),
       contentHtml: processed.toString(),
       source: "db",
+      featuredImage: data.featured_image || undefined,
     };
   } catch {
     return null;
