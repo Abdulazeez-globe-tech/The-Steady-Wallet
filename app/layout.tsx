@@ -36,6 +36,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap"
           rel="stylesheet"
         />
+        <meta name="p:domain_verify" content="6e7d3708b98b57345dca67545dde0398"/>
       </head>
       <body className="min-h-screen flex flex-col">
         <Header />
