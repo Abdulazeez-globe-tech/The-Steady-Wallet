@@ -51,6 +51,7 @@ Commit and push. Vercel redeploys automatically.
 - **Contact form** (`app/contact/page.tsx`): point the submit handler at Formspree, Resend, or a Next.js API route.
 - **Analytics**: add Vercel Analytics (`@vercel/analytics`) and the Pinterest Tag when you're ready.
 
+
 ## Project structure
 
 ```
