@@ -1,280 +1,182 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import ImageUploader from "@/components/ImageUploader";
 
-type Post = {
-  id: string;
-  title: string;
-  slug: string;
-  category: string;
-  published: boolean;
-  created_at: string;
-};
+const categories = [
+  "Budgeting",
+  "Debt Payoff",
+  "Side Hustles & Income",
+  "Printables & Planners",
+  "Money Mindset",
+];
 
-type Views = {
-  total: Record<string, number>;
-  today: Record<string, number>;
-  last7: Record<string, number>;
-  totalViews: number;
-};
-
-export default function AdminDashboard() {
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [views, setViews] = useState<Views | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function NewPostPage() {
   const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const contentRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    async function load() {
-      const [postsRes, viewsRes] = await Promise.all([
-        fetch("/api/posts"),
-        fetch("/api/views"),
-      ]);
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    category: categories[0],
+    content: "",
+    published: false,
+    featured_image: "",
+  });
 
-      if (postsRes.status === 401) {
-        router.push("/admin/login");
-        return;
-      }
+  function update(field: string, value: string | boolean) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  }
 
-      if (postsRes.ok) setPosts(await postsRes.json());
-      if (viewsRes.ok) setViews(await viewsRes.json());
-      setLoading(false);
+  function insertImageInContent(url: string) {
+    const textarea = contentRef.current;
+    if (!textarea) {
+      update("content", form.content + `\n\n![Image description](${url})\n\n`);
+      return;
     }
-    load();
-  }, [router]);
+    const start = textarea.selectionStart;
+    const before = form.content.slice(0, start);
+    const after = form.content.slice(start);
+    const imageMarkdown = `\n\n![Image description](${url})\n\n`;
+    update("content", before + imageMarkdown + after);
+    setTimeout(() => {
+      textarea.focus();
+      const newPos = start + imageMarkdown.length;
+      textarea.setSelectionRange(newPos, newPos);
+    }, 50);
+  }
 
-  async function togglePublish(id: string, published: boolean) {
-    await fetch(`/api/posts/${id}`, {
-      method: "PUT",
+  async function save(publish: boolean) {
+    if (!form.title.trim() || !form.content.trim()) {
+      setError("Title and content are required.");
+      return;
+    }
+    if (!form.description.trim()) {
+      setError("Description is required for SEO.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    const res = await fetch("/api/posts", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ published: !published }),
+      body: JSON.stringify({ ...form, published: publish }),
     });
-    setPosts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, published: !p.published } : p))
-    );
-  }
 
-  async function deletePost(id: string, title: string) {
-    if (!confirm(`Delete "${title}"? This can't be undone.`)) return;
-    await fetch(`/api/posts/${id}`, { method: "DELETE" });
-    setPosts((prev) => prev.filter((p) => p.id !== id));
-  }
+    if (res.status === 401) {
+      router.push("/admin/login");
+      return;
+    }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-paper flex items-center justify-center">
-        <p className="text-fern">Loading dashboard...</p>
-      </div>
-    );
-  }
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error || "Something went wrong.");
+      setSaving(false);
+      return;
+    }
 
-  const totalViewsToday = views
-    ? Object.values(views.today).reduce((a, b) => a + b, 0)
-    : 0;
-  const totalViewsWeek = views
-    ? Object.values(views.last7).reduce((a, b) => a + b, 0)
-    : 0;
+    router.push("/admin");
+  }
 
   return (
     <div className="min-h-screen bg-paper">
       <header className="bg-pine text-paper">
-        <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-5 py-4 flex items-center justify-between">
           <div>
-            <h1 className="font-display text-xl font-semibold">
-              The Steady Wallet
-            </h1>
-            <p className="text-xs text-mist/70">Admin Dashboard</p>
+            <Link href="/admin" className="text-xs text-mist/70 hover:text-paper">
+              &larr; Back to dashboard
+            </Link>
+            <h1 className="font-display text-xl font-semibold mt-1">New post</h1>
           </div>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/"
-              className="text-xs text-mist/70 hover:text-paper underline underline-offset-4"
-            >
-              View site
-            </Link>
-            <Link
-              href="/admin/new"
-              className="rounded-full bg-sage text-pine text-sm font-medium px-5 py-2 hover:bg-moss transition-colors"
-            >
-              + New post
-            </Link>
+          <div className="flex items-center gap-3">
+            <button onClick={() => save(false)} disabled={saving}
+              className="rounded-full border border-sage text-mist text-sm font-medium px-5 py-2 hover:bg-fern/50 transition-colors disabled:opacity-50">
+              Save draft
+            </button>
+            <button onClick={() => save(true)} disabled={saving}
+              className="rounded-full bg-sage text-pine text-sm font-medium px-5 py-2 hover:bg-moss transition-colors disabled:opacity-50">
+              {saving ? "Saving..." : "Publish"}
+            </button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-5 py-8">
-        {/* Analytics cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
-          <div className="bg-white rounded-2xl border border-moss p-5">
-            <p className="text-xs text-sage uppercase tracking-wide font-semibold">
-              Total views
-            </p>
-            <p className="mt-2 text-3xl font-display font-semibold text-pine">
-              {views?.totalViews || 0}
-            </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-moss p-5">
-            <p className="text-xs text-sage uppercase tracking-wide font-semibold">
-              Views today
-            </p>
-            <p className="mt-2 text-3xl font-display font-semibold text-pine">
-              {totalViewsToday}
-            </p>
-          </div>
-          <div className="bg-white rounded-2xl border border-moss p-5">
-            <p className="text-xs text-sage uppercase tracking-wide font-semibold">
-              Last 7 days
-            </p>
-            <p className="mt-2 text-3xl font-display font-semibold text-pine">
-              {totalViewsWeek}
-            </p>
-          </div>
-        </div>
-
-        {/* Posts table */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display text-2xl font-semibold text-pine">
-            Posts
-          </h2>
-          <p className="text-sm text-sage">
-            {posts.length} post{posts.length !== 1 ? "s" : ""} in database
-          </p>
-        </div>
-
-        {posts.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-moss p-10 text-center">
-            <p className="text-fern">No posts yet.</p>
-            <Link
-              href="/admin/new"
-              className="mt-4 inline-block rounded-full bg-fern text-paper font-medium px-6 py-2.5 hover:bg-pine transition-colors"
-            >
-              Write your first post
-            </Link>
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-moss overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-mist text-left">
-                  <th className="px-5 py-3 font-semibold text-pine">Title</th>
-                  <th className="px-5 py-3 font-semibold text-pine hidden sm:table-cell">
-                    Category
-                  </th>
-                  <th className="px-5 py-3 font-semibold text-pine text-center">
-                    Views
-                  </th>
-                  <th className="px-5 py-3 font-semibold text-pine text-center">
-                    Status
-                  </th>
-                  <th className="px-5 py-3 font-semibold text-pine text-right">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {posts.map((post) => (
-                  <tr
-                    key={post.id}
-                    className="border-b border-mist/50 last:border-none"
-                  >
-                    <td className="px-5 py-4">
-                      <p className="font-medium text-pine">{post.title}</p>
-                      <p className="text-xs text-sage mt-0.5">
-                        /blog/{post.slug}
-                      </p>
-                    </td>
-                    <td className="px-5 py-4 text-fern hidden sm:table-cell">
-                      {post.category}
-                    </td>
-                    <td className="px-5 py-4 text-center text-fern">
-                      {views?.total[post.slug] || 0}
-                    </td>
-                    <td className="px-5 py-4 text-center">
-                      <button
-                        onClick={() => togglePublish(post.id, post.published)}
-                        className={`text-xs font-medium px-3 py-1 rounded-full ${
-                          post.published
-                            ? "bg-sage/20 text-fern"
-                            : "bg-petal-soft text-petal"
-                        }`}
-                      >
-                        {post.published ? "Published" : "Draft"}
-                      </button>
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        <Link
-                          href={`/admin/edit/${post.id}`}
-                          className="text-xs text-fern hover:text-pine underline underline-offset-4"
-                        >
-                          Edit
-                        </Link>
-                        <button
-                          onClick={() => deletePost(post.id, post.title)}
-                          className="text-xs text-red-400 hover:text-red-600 underline underline-offset-4"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <div className="max-w-4xl mx-auto px-5 py-8">
+        {error && (
+          <div className="mb-6 bg-red-50 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>
         )}
 
-        {/* Per-post view breakdown */}
-        {views && Object.keys(views.total).length > 0 && (
-          <div className="mt-10">
-            <h2 className="font-display text-2xl font-semibold text-pine mb-4">
-              Views by post
-            </h2>
-            <div className="bg-white rounded-2xl border border-moss overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-mist text-left">
-                    <th className="px-5 py-3 font-semibold text-pine">
-                      Page
-                    </th>
-                    <th className="px-5 py-3 font-semibold text-pine text-right">
-                      Today
-                    </th>
-                    <th className="px-5 py-3 font-semibold text-pine text-right">
-                      7 days
-                    </th>
-                    <th className="px-5 py-3 font-semibold text-pine text-right">
-                      All time
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(views.total)
-                    .sort(([, a], [, b]) => b - a)
-                    .map(([slug, total]) => (
-                      <tr
-                        key={slug}
-                        className="border-b border-mist/50 last:border-none"
-                      >
-                        <td className="px-5 py-3 text-fern">/blog/{slug}</td>
-                        <td className="px-5 py-3 text-right text-pine">
-                          {views.today[slug] || 0}
-                        </td>
-                        <td className="px-5 py-3 text-right text-pine">
-                          {views.last7[slug] || 0}
-                        </td>
-                        <td className="px-5 py-3 text-right font-medium text-pine">
-                          {total}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-pine mb-1.5">Title</label>
+            <input value={form.title} onChange={(e) => update("title", e.target.value)}
+              placeholder="How to Budget on an Irregular Income"
+              className="w-full rounded-2xl border border-moss bg-white px-4 py-3 text-lg font-display focus:outline-none focus:ring-2 focus:ring-sage" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-pine mb-1.5">
+              Meta description <span className="text-sage font-normal ml-2">(17-20 words for SEO)</span>
+            </label>
+            <input value={form.description} onChange={(e) => update("description", e.target.value)}
+              placeholder="A step-by-step budgeting plan for women who are done living paycheck to paycheck."
+              className="w-full rounded-2xl border border-moss bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-sage" />
+            <p className="mt-1 text-xs text-sage">
+              {form.description.trim().split(/\s+/).filter(Boolean).length} words
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-pine mb-1.5">Category</label>
+            <select value={form.category} onChange={(e) => update("category", e.target.value)}
+              className="w-full rounded-2xl border border-moss bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-sage">
+              {categories.map((c) => (<option key={c} value={c}>{c}</option>))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-pine mb-1.5">
+              Featured image <span className="text-sage font-normal ml-2">(shows at the top of the post and on cards)</span>
+            </label>
+            {form.featured_image ? (
+              <div className="mt-2">
+                <img src={form.featured_image} alt="Featured preview"
+                  className="w-full max-w-md rounded-2xl border border-moss object-cover max-h-64" />
+                <div className="mt-3 flex gap-3">
+                  <ImageUploader label="Replace image" onUpload={(url) => update("featured_image", url)} />
+                  <button onClick={() => update("featured_image", "")}
+                    className="text-xs text-red-400 hover:text-red-600 underline underline-offset-4">Remove</button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2">
+                <ImageUploader label="Upload featured image" onUpload={(url) => update("featured_image", url)} />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-sm font-medium text-pine">
+                Content <span className="text-sage font-normal ml-2">(Markdown supported)</span>
+              </label>
+              <ImageUploader label="Insert image" onUpload={insertImageInContent} />
             </div>
+            <textarea ref={contentRef} value={form.content} onChange={(e) => update("content", e.target.value)}
+              rows={24}
+              placeholder={`Write your post in Markdown...\n\n## This is a heading\n\nThis is a paragraph. You can use **bold text** for emphasis.\n\n### This is a subheading\n\n- Bullet point one\n- Bullet point two`}
+              className="w-full rounded-2xl border border-moss bg-white px-4 py-3 font-mono text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-sage" />
+            <p className="mt-1 text-xs text-sage">
+              {form.content.trim().split(/\s+/).filter(Boolean).length} words
+            </p>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
