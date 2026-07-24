@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 import { getAllPosts, getPost, formatDate } from "@/lib/posts";
 import PostCard from "@/components/PostCard";
 import WalletMark from "@/components/WalletMark";
+import ViewTracker from "@/components/ViewTracker";
+
+export const dynamic = "force-dynamic";
 
 export async function generateStaticParams() {
   return getAllPosts().map((p) => ({ slug: p.slug }));
@@ -58,6 +61,7 @@ export default async function PostPage({
 
   return (
     <article className="pt-16">
+      <ViewTracker slug={slug} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
