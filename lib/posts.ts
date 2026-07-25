@@ -3,7 +3,7 @@ import path from "path";
 import matter from "gray-matter";
 import { remark } from "remark";
 import html from "remark-html";
-import { supabase, DbPost } from "./supabase";
+import { supabase } from "./supabase";
 
 const postsDir = path.join(process.cwd(), "content", "posts");
 
@@ -63,7 +63,7 @@ async function getDbPosts(): Promise<PostMeta[]> {
 
     if (error || !data) return [];
 
-    return data.map((p: DbPost) => ({
+    return data.map((p: any) => ({
       slug: p.slug,
       title: p.title,
       description: p.description,
