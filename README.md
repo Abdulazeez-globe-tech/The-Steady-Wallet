@@ -54,6 +54,7 @@ Commit and push. Vercel redeploys automatically.
 
 ## Project structure
 
+
 ```
 app/              pages (home, blog, blog/[slug], about, contact, privacy, disclosure)
 components/       Header, Footer, PostCard, Newsletter, WalletMark
